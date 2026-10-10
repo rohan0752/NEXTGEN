@@ -236,7 +236,7 @@ export const Login: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Institutional Role
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setRole("student")}
@@ -261,23 +261,10 @@ export const Login: React.FC = () => {
                     <UserCheck className="w-4 h-4" />
                     Faculty
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole("admin")}
-                    className={`py-2 px-3 text-xs font-bold rounded-lg border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
-                      role === "admin"
-                        ? "bg-indigo-50 border-indigo-600 text-indigo-700"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <Building2 className="w-4 h-4" />
-                    Admin
-                  </button>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1.5">
                   {role === "student" && "Students can scan QR codes, verify attendance, and view academic records."}
                   {role === "faculty" && "Faculty can launch live dynamic QR sessions and review student attendance."}
-                  {role === "admin" && "Administrators have full institutional control, classroom geofencing, and audit logs."}
                 </p>
               </div>
             )}

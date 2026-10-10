@@ -7,7 +7,10 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    error: "Too many login attempts. Please try again after 15 minutes for security reasons.",
+    error: "Too many authentication attempts. Please try again after 15 minutes for security reasons.",
+  },
+  handler: (req, res, next, options) => {
+    res.status(options.statusCode).json(options.message);
   },
 });
 
@@ -20,6 +23,9 @@ export const verificationLimiter = rateLimit({
   message: {
     error: "Too many attendance verification attempts in a short period. Please wait a minute.",
   },
+  handler: (req, res, next, options) => {
+    res.status(options.statusCode).json(options.message);
+  },
 });
 
 // General API limiter
@@ -30,5 +36,8 @@ export const apiLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     error: "Too many requests to CampusVerify API. Please slow down.",
+  },
+  handler: (req, res, next, options) => {
+    res.status(options.statusCode).json(options.message);
   },
 });

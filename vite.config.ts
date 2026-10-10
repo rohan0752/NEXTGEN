@@ -29,6 +29,22 @@ export default defineConfig({
       }
     }
   },
+  preview: {
+    host: true,
+    port: 4173,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/uploads': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

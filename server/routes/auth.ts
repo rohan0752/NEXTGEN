@@ -53,7 +53,7 @@ router.get("/demo-accounts", (req, res) => {
 // Register new institutional user
 router.post("/register", authLimiter, async (req, res) => {
   try {
-    const { fullName, email, password, role = "student" } = req.body;
+    const { fullName, email, password, role = "student" } = req.body || {};
 
     if (!fullName || !fullName.trim()) {
       return res.status(400).json({ error: "Full name is required." });
@@ -67,8 +67,11 @@ router.post("/register", authLimiter, async (req, res) => {
       return res.status(400).json({ error: "Password must be at least 6 characters long." });
     }
 
-    const validRoles = ["student", "faculty", "admin"];
-    const userRole = validRoles.includes(role) ? role : "student";
+    if (role === "admin") {
+      return res.status(403).json({ error: "Administrator accounts cannot be self-registered. Please contact IT Administration." });
+    }
+
+    const userRole = role === "faculty" ? "faculty" : "student";
     const normalizedEmail = email.toLowerCase().trim();
 
     // Check if user already exists
@@ -188,10 +191,10 @@ router.post("/register", authLimiter, async (req, res) => {
 // Login
 router.post("/login", authLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
 
     if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required." });
+      return res.status(400).json({ error: "Email or Student ID and password are required." });
     }
 
     const inputIdentifier = email.trim();

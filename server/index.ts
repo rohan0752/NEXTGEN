@@ -84,10 +84,18 @@ if (fs.existsSync(distDir)) {
   });
 }
 
-// Global error handling middleware
+// 404 handler for unmatched API routes - Express 5 compatible, always returns valid JSON
+app.use("/api", (req, res) => {
+  res.status(404).json({
+    error: `API route '${req.method} ${req.originalUrl || req.path}' not found on CampusVerify server.`,
+  });
+});
+
+// Global error handling middleware - always returns valid JSON
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error("Unhandled Server Error:", err);
-  res.status(err.status || 500).json({
+  const statusCode = Number(err.status || err.statusCode) || 500;
+  res.status(statusCode).json({
     error: err.message || "Internal server error occurred.",
   });
 });

@@ -10,7 +10,12 @@ import {
   DemoAccount,
 } from "../types";
 
-const API_BASE = "/api";
+export function getApiBaseUrl(): string {
+  if (import.meta.env?.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL.replace(/\/+$/, "");
+  }
+  return "/api";
+}
 
 function getToken(): string | null {
   const token = localStorage.getItem("campusverify_token");
@@ -28,21 +33,132 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set("Content-Type", "application/json");
   }
 
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  const primaryBase = getApiBaseUrl();
+  const url = `${primaryBase}${endpoint}`;
 
-  const data = await response.json().catch(() => ({ error: "Failed to parse JSON response" }));
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+  } catch (networkError: any) {
+    // If relative /api fails due to network/proxy drops, attempt direct connection to backend port 5000
+    if (typeof window !== "undefined" && window.location.port !== "5000" && primaryBase === "/api") {
+      const directUrl = `http://${window.location.hostname}:5000/api${endpoint}`;
+      try {
+        response = await fetch(directUrl, {
+          ...options,
+          headers,
+          credentials: "include",
+        });
+      } catch {
+        throw new Error(
+          `Unable to connect to CampusVerify backend at ${url}. Please ensure the server is active on port 5000.`
+        );
+      }
+    } else {
+      throw new Error(
+        `Network connection failed: ${networkError.message || "Failed to reach server."}`
+      );
+    }
+  }
 
+  // Read response as text first so we never crash on HTML, empty responses, or malformed JSON
+  let responseText = "";
+  try {
+    responseText = await response.text();
+  } catch (err: any) {
+    throw new Error(`Failed to read server response: ${err.message || "Unknown error"}`);
+  }
+
+  let data: any = null;
+  const contentType = response.headers.get("content-type") || "";
+  const isHtml = contentType.includes("text/html") || responseText.trim().startsWith("<");
+
+  if (responseText.trim().length > 0) {
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      data = null;
+    }
+  }
+
+  // Handle HTTP error responses (!response.ok)
   if (!response.ok) {
-    const errorMsg = data?.error || `Request failed with status ${response.status}`;
-    throw new Error(errorMsg);
+    let errorMsg = "";
+    if (data && typeof data === "object") {
+      errorMsg = data.error || data.message || data.details;
+    }
+
+    if (!errorMsg) {
+      if (!responseText || responseText.trim().length === 0) {
+        errorMsg = `Server returned an empty response (HTTP ${response.status}).`;
+      } else if (isHtml) {
+        const titleMatch = responseText.match(/<title>([^<]+)<\/title>/i);
+        const h1Match = responseText.match(/<h1>([^<]+)<\/h1>/i);
+        const preMatch = responseText.match(/<pre>([^<]+)<\/pre>/i);
+        const snippet = (preMatch?.[1] || h1Match?.[1] || titleMatch?.[1] || "").trim();
+
+        if (response.status === 404) {
+          errorMsg = `API endpoint '${endpoint}' not found (HTTP 404).`;
+        } else if (response.status === 502 || response.status === 503) {
+          errorMsg = `Backend server is temporarily starting up or unavailable (HTTP ${response.status}).`;
+        } else if (snippet) {
+          errorMsg = `${snippet} (HTTP ${response.status})`;
+        } else {
+          errorMsg = `Server returned HTML error page (HTTP ${response.status}).`;
+        }
+      } else {
+        errorMsg = responseText.trim().slice(0, 160);
+      }
+    }
+
+    throw new Error(errorMsg || `Request failed with status ${response.status}`);
+  }
+
+  // Handle successful HTTP status (2xx)
+  if (data === null) {
+    if (response.status === 204 || responseText.trim().length === 0) {
+      return {} as T;
+    }
+
+    // If 200 OK returned HTML (e.g. Vite SPA fallback index.html for unmatched path)
+    if (isHtml) {
+      // Retry once directly with port 5000 if running through dev proxy
+      if (typeof window !== "undefined" && window.location.port !== "5000" && primaryBase === "/api") {
+        const directUrl = `http://${window.location.hostname}:5000/api${endpoint}`;
+        try {
+          const directRes = await fetch(directUrl, {
+            ...options,
+            headers,
+            credentials: "include",
+          });
+          const directText = await directRes.text();
+          const directJson = JSON.parse(directText);
+          if (!directRes.ok) {
+            throw new Error(directJson.error || `Request failed with status ${directRes.status}`);
+          }
+          return directJson as T;
+        } catch (directErr: any) {
+          throw new Error(directErr.message || "Backend returned HTML instead of expected JSON.");
+        }
+      }
+      throw new Error(
+        `Backend returned HTML instead of expected JSON for '${endpoint}'. Please verify the backend API route.`
+      );
+    }
+
+    return { raw: responseText } as unknown as T;
   }
 
   return data as T;
